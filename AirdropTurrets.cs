@@ -7,7 +7,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
     [Info("Airdrop Turrets", "VisEntities", "1.0.0")]
-    [Description(" ")]
+    [Description("Deploys auto turrets onto airdrops.")]
     public class AirdropTurrets : RustPlugin
     {
         #region Fields
@@ -109,12 +109,7 @@ namespace Oxide.Plugins
                     {
                         Shortname = "ammo.rifle",
                         Amount = 128
-                    },
-                    new AmmoInfo
-                    {
-                        Shortname = "ammo.rifle",
-                        Amount = 128
-                    },
+                    }
                 },
                 AttachmentShortnames = new List<string>
                 {
@@ -163,6 +158,7 @@ namespace Oxide.Plugins
             NextTick(() =>
             {
                 DeployAutoTurret(supplyDrop);
+                supplyDrop.CancelInvoke(supplyDrop.CheckNightLight);
             });
         }
 
@@ -217,10 +213,11 @@ namespace Oxide.Plugins
                     var attachmentItem = ItemManager.CreateByName(attachmentShortname);
                     if (attachmentItem != null)
                     {
-                        attachmentItem.MoveToContainer(item.contents);
+                        if (!attachmentItem.MoveToContainer(item.contents))
+                        {
+                            attachmentItem.Remove();
+                        }
                     }
-                    else
-                        attachmentItem.Remove();
                 }
             }
 
