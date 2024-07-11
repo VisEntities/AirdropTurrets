@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Airdrop Turrets", "VisEntities", "1.0.0")]
+    [Info("Airdrop Turrets", "VisEntities", "1.1.0")]
     [Description("Deploys auto turrets onto airdrops.")]
     public class AirdropTurrets : RustPlugin
     {
@@ -42,6 +42,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("Peacekeeper")]
             public bool Peacekeeper { get; set; }
+
+            [JsonProperty("Turn On Only After Airdrop Has Landed")]
+            public bool TurnOnOnlyAfterAirdropHasLanded { get; set; }
         }
 
         private class AmmoInfo
@@ -83,6 +86,11 @@ namespace Oxide.Plugins
             if (string.Compare(_config.Version, "1.0.0") < 0)
                 _config = defaultConfig;
 
+            if (string.Compare(_config.Version, "1.1.0") < 0)
+            {
+                _config.TurnOnOnlyAfterAirdropHasLanded = defaultConfig.TurnOnOnlyAfterAirdropHasLanded;
+            }
+
             PrintWarning("Config update complete! Updated from version " + _config.Version + " to " + Version.ToString());
             _config.Version = Version.ToString();
         }
@@ -115,7 +123,8 @@ namespace Oxide.Plugins
                 {
                     "weapon.mod.lasersight"
                 },
-                Peacekeeper = true
+                Peacekeeper = true,
+                TurnOnOnlyAfterAirdropHasLanded = false
             };
         }
 
@@ -126,6 +135,9 @@ namespace Oxide.Plugins
         private void Init()
         {
             _plugin = this;
+
+            if (!_config.TurnOnOnlyAfterAirdropHasLanded)
+                Unsubscribe(nameof(OnSupplyDropLanded));
         }
 
         private void Unload()
@@ -142,8 +154,8 @@ namespace Oxide.Plugins
                 if (supplyDrop == null || supplyDrop.isLootable)
                     continue;
 
-                List<AutoTurret> turrets = FindChildrenOfType<AutoTurret>(supplyDrop);
-                if (turrets.Count > 0)
+                List<AutoTurret> autoTurrets = FindChildrenOfType<AutoTurret>(supplyDrop);
+                if (autoTurrets.Count > 0)
                     continue;
 
                 DeployAutoTurret(supplyDrop);
@@ -162,6 +174,23 @@ namespace Oxide.Plugins
             });
         }
 
+        private void OnSupplyDropLanded(SupplyDrop supplyDrop)
+        {
+            if (supplyDrop == null)
+                return;
+
+            if (!_config.TurnOnOnlyAfterAirdropHasLanded)
+                return;
+
+            List<AutoTurret> autoTurrets = FindChildrenOfType<AutoTurret>(supplyDrop);
+            if (autoTurrets.Count == 0)
+                return;
+
+            AutoTurret autoTurret = autoTurrets[0];
+            if (autoTurret != null)
+                autoTurret.InitiateStartup();
+        }
+
         #endregion Oxide Hooks
 
         #region Turret Deployment and Setup
@@ -178,7 +207,8 @@ namespace Oxide.Plugins
                 autoTurret.EnsureReloaded();
 
                 autoTurret.SetPeacekeepermode(_config.Peacekeeper);
-                autoTurret.InitiateStartup();
+                if (!_config.TurnOnOnlyAfterAirdropHasLanded)
+                    autoTurret.InitiateStartup();
 
                 autoTurret.SendNetworkUpdate();
                 _supplyDropTurrets.Add(autoTurret);
